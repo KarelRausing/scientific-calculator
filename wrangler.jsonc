@@ -4,6 +4,12 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-07-19",
   "workers_dev": true,
+  "secrets": {
+    "required": [
+      "UNLOCK_SECRET",
+      "OWNER_SECRET"
+    ]
+  },
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
