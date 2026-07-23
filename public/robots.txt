@@ -1,0 +1,3 @@
+# Crawling stays available so search engines can read the noindex directives.
+User-agent: *
+Disallow:

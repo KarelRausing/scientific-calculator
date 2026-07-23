@@ -1,0 +1,43 @@
+{
+  "name": "cloudflare-calculator-private-space",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "npm run typecheck",
+    "typecheck": "tsc --noEmit",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 execute scientific-calculator-data --local --file=schema.sql",
+    "db:remote": "wrangler d1 execute scientific-calculator-data --remote --file=schema.sql"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260719.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.112.0"
+  },
+  "description": "A plain utility center with dictionary, calculator, converters, date tools, and an application-layer-encrypted private chat/owner layer on Cloudflare Workers, D1, and Durable Objects.",
+  "cloudflare": {
+    "label": "Scientific Calculator Edge",
+    "products": [
+      "Workers",
+      "D1",
+      "Durable Objects"
+    ],
+    "bindings": {
+      "UNLOCK_SECRET": {
+        "description": "聊天解锁密钥。请使用与管理密钥不同、至少 24 位的高熵随机值。"
+      },
+      "OWNER_SECRET": {
+        "description": "独立管理密钥。必须与聊天密钥不同，用于进入隐藏管理窗口、导出密文及清空/重置记录。"
+      },
+      "DB": {
+        "description": "保存加密聊天记录的 D1 数据库。保持默认名称即可，Cloudflare 会自动创建。"
+      },
+      "CHAT_ROOM": {
+        "description": "负责实时 WebSocket、在线人数和短时会话的 Durable Object。Cloudflare 会自动创建。"
+      }
+    }
+  }
+}

@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow,noarchive,nosnippet,noimageindex">
+    <meta name="description" content="在线中英词典、科学计算器、单位换算、进制转换和日期计算工具。">
+    <title>Online Dict&amp;Calc Tools</title>
+    <link rel="stylesheet" href="/formula-assets/calculator.css?v=20">
+</head>
+<body>
+<div id="formulaCalcApp" class="utility-app" data-endpoint="/expression" data-dictionary-endpoint="/api/dictionary">
+    <div class="utility-shell">
+        <header class="utility-header">
+            <div>
+                <h1>Online Dict&amp;Calc Tools</h1>
+                <p>词典、计算、换算与日期工具</p>
+            </div>
+        </header>
+
+        <nav class="tool-tabs" aria-label="工具导航">
+            <button class="tool-tab is-active" type="button" data-tool-target="dictionary" aria-selected="true">Dictionary</button>
+            <button class="tool-tab" type="button" data-tool-target="calculator" aria-selected="false">Scientific Calculator</button>
+            <button class="tool-tab" type="button" data-tool-target="unit" aria-selected="false">Unit Converter</button>
+            <button class="tool-tab" type="button" data-tool-target="base" aria-selected="false">Base Converter</button>
+            <button class="tool-tab" type="button" data-tool-target="date" aria-selected="false">Date Calculator</button>
+        </nav>
+
+        <main class="tool-content">
+            <section id="tool-dictionary" class="tool-panel" data-tool-panel="dictionary" aria-labelledby="dictionaryTitle">
+                <div class="panel-head">
+                    <div>
+                        <h2 id="dictionaryTitle">中英 / 英中词典</h2>
+                        <p>支持中英互译、英文释义、音标和例句。查询失败时会自动切换可用数据源。</p>
+                    </div>
+                </div>
+                <form id="dictionaryForm" class="dictionary-form" novalidate>
+                    <label class="field-label" for="dictionaryInput">单词或短句</label>
+                    <textarea id="dictionaryInput" rows="3" maxlength="300" placeholder="例如：mechanical principle 或 机械原理" required></textarea>
+                    <div class="form-row">
+                        <label class="select-wrap">
+                            <span>方向</span>
+                            <select id="dictionaryDirection">
+                                <option value="auto">自动识别</option>
+                                <option value="en-zh">英译中</option>
+                                <option value="zh-en">中译英</option>
+                            </select>
+                        </label>
+                        <button id="dictionarySubmit" class="primary-button" type="submit">查询</button>
+                    </div>
+                </form>
+                <div id="dictionaryStatus" class="tool-status" role="status" aria-live="polite"></div>
+                <div id="dictionaryResult" class="dictionary-result" hidden></div>
+                <div class="source-note">查询结果综合多个词典与翻译数据源，具体释义请以权威词典为准。</div>
+            </section>
+
+            <section id="tool-calculator" class="tool-panel" data-tool-panel="calculator" hidden aria-labelledby="calculatorTitle">
+                <div class="panel-head compact-head">
+                    <div>
+                        <h2 id="calculatorTitle">科学计算器</h2>
+                        <p>支持函数、组合、数论、角度模式和计算历史。</p>
+                    </div>
+                </div>
+                <div class="calc-shell" aria-label="科学计算器">
+                    <section class="calc-display">
+                        <div class="calc-topline">
+                            <button id="angleMode" class="mode-button" type="button" aria-label="切换角度模式">DEG</button>
+                            <button id="historyToggle" class="history-button" type="button">历史</button>
+                        </div>
+                        <label class="sr-only" for="expressionInput">表达式</label>
+                        <input id="expressionInput" class="expression-input" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="4096" placeholder="输入表达式">
+                        <div id="resultDisplay" class="result-display" aria-live="polite">0</div>
+                    </section>
+
+                    <section id="historyPanel" class="history-panel" hidden>
+                        <div class="history-head">
+                            <strong>计算历史</strong>
+                            <div class="history-actions">
+                                <button id="clearHistory" type="button">清空</button>
+                                <button id="closeHistory" type="button">返回</button>
+                            </div>
+                        </div>
+                        <div id="historyList" class="history-list"></div>
+                    </section>
+
+                    <section class="calc-keypad" aria-label="计算按键">
+                        <button type="button" data-action="clear" class="key key-soft">AC</button>
+                        <button type="button" data-action="delete" class="key key-soft">DEL</button>
+                        <button type="button" data-insert="(" class="key key-soft">(</button>
+                        <button type="button" data-insert=")" class="key key-soft">)</button>
+                        <button type="button" data-insert="%" class="key key-soft">%</button>
+                        <button type="button" data-insert="/" class="key key-operator">÷</button>
+
+                        <button type="button" data-insert="sin(" class="key key-function">sin</button>
+                        <button type="button" data-insert="cos(" class="key key-function">cos</button>
+                        <button type="button" data-insert="tan(" class="key key-function">tan</button>
+                        <button type="button" data-insert="asin(" class="key key-function">sin⁻¹</button>
+                        <button type="button" data-insert="acos(" class="key key-function">cos⁻¹</button>
+                        <button type="button" data-insert="atan(" class="key key-function">tan⁻¹</button>
+
+                        <button type="button" data-insert="sinh(" class="key key-function">sinh</button>
+                        <button type="button" data-insert="cosh(" class="key key-function">cosh</button>
+                        <button type="button" data-insert="tanh(" class="key key-function">tanh</button>
+                        <button type="button" data-insert="ln(" class="key key-function">ln</button>
+                        <button type="button" data-insert="log(" class="key key-function">log</button>
+                        <button type="button" data-insert="log2(" class="key key-function">log₂</button>
+
+                        <button type="button" data-insert="sqrt(" class="key key-function">√</button>
+                        <button type="button" data-insert="cbrt(" class="key key-function">∛</button>
+                        <button type="button" data-insert="^2" class="key key-function">x²</button>
+                        <button type="button" data-insert="^3" class="key key-function">x³</button>
+                        <button type="button" data-insert="^" class="key key-function">xʸ</button>
+                        <button type="button" data-insert="inv(" class="key key-function">1/x</button>
+
+                        <button type="button" data-insert="ncr(" class="key key-function">nCr</button>
+                        <button type="button" data-insert="npr(" class="key key-function">nPr</button>
+                        <button type="button" data-insert="gcd(" class="key key-function">gcd</button>
+                        <button type="button" data-insert="lcm(" class="key key-function">lcm</button>
+                        <button type="button" data-insert="min(" class="key key-function">min</button>
+                        <button type="button" data-insert="max(" class="key key-function">max</button>
+
+                        <button type="button" data-insert="7" class="key">7</button>
+                        <button type="button" data-insert="8" class="key">8</button>
+                        <button type="button" data-insert="9" class="key">9</button>
+                        <button type="button" data-insert="!" class="key key-function">x!</button>
+                        <button type="button" data-insert="mod(" class="key key-function">mod</button>
+                        <button type="button" data-insert="*" class="key key-operator">×</button>
+
+                        <button type="button" data-insert="4" class="key">4</button>
+                        <button type="button" data-insert="5" class="key">5</button>
+                        <button type="button" data-insert="6" class="key">6</button>
+                        <button type="button" data-insert="abs(" class="key key-function">abs</button>
+                        <button type="button" data-insert="floor(" class="key key-function">floor</button>
+                        <button type="button" data-insert="-" class="key key-operator">−</button>
+
+                        <button type="button" data-insert="1" class="key">1</button>
+                        <button type="button" data-insert="2" class="key">2</button>
+                        <button type="button" data-insert="3" class="key">3</button>
+                        <button type="button" data-insert="pi" class="key key-function">π</button>
+                        <button type="button" data-insert="e" class="key key-function">e</button>
+                        <button type="button" data-insert="+" class="key key-operator">+</button>
+
+                        <button type="button" data-insert="0" class="key key-zero">0</button>
+                        <button type="button" data-insert="." class="key">.</button>
+                        <button type="button" data-insert="Ans" class="key key-function">Ans</button>
+                        <button type="button" data-insert="," class="key key-function">,</button>
+                        <button type="button" data-action="evaluate" class="key key-equals">=</button>
+                    </section>
+                </div>
+                <div class="calculator-help">示例：ncr(10,3)、gcd(84,30)、sin(30)、round(1.2345,2)。</div>
+            </section>
+
+            <section id="tool-unit" class="tool-panel" data-tool-panel="unit" hidden aria-labelledby="unitTitle">
+                <div class="panel-head">
+                    <div>
+                        <h2 id="unitTitle">单位换算</h2>
+                        <p>支持长度、质量、面积、体积、温度等常用单位换算。</p>
+                    </div>
+                </div>
+                <div class="converter-grid">
+                    <label class="field-block">
+                        <span>类别</span>
+                        <select id="unitCategory"></select>
+                    </label>
+                    <label class="field-block">
+                        <span>数值</span>
+                        <input id="unitInput" type="text" inputmode="decimal" value="1" autocomplete="off">
+                    </label>
+                    <label class="field-block">
+                        <span>从</span>
+                        <select id="unitFrom"></select>
+                    </label>
+                    <button id="unitSwap" class="secondary-button swap-button" type="button" aria-label="交换单位">交换</button>
+                    <label class="field-block">
+                        <span>到</span>
+                        <select id="unitTo"></select>
+                    </label>
+                    <label class="field-block result-field">
+                        <span>结果</span>
+                        <input id="unitOutput" type="text" readonly>
+                    </label>
+                </div>
+                <div id="unitFormula" class="tool-status" aria-live="polite"></div>
+            </section>
+
+            <section id="tool-base" class="tool-panel" data-tool-panel="base" hidden aria-labelledby="baseTitle">
+                <div class="panel-head">
+                    <div>
+                        <h2 id="baseTitle">进制转换</h2>
+                        <p>支持二进制、八进制、十进制和十六进制整数转换。</p>
+                    </div>
+                </div>
+                <div class="base-input-row">
+                    <label class="field-block grow-field">
+                        <span>输入整数</span>
+                        <input id="baseInput" type="text" autocomplete="off" spellcheck="false" placeholder="例如 255、0xFF、11111111">
+                    </label>
+                    <label class="field-block base-select-field">
+                        <span>输入进制</span>
+                        <select id="baseSource">
+                            <option value="auto">自动识别</option>
+                            <option value="2">二进制</option>
+                            <option value="8">八进制</option>
+                            <option value="10">十进制</option>
+                            <option value="16">十六进制</option>
+                        </select>
+                    </label>
+                </div>
+                <div id="baseStatus" class="tool-status" role="status" aria-live="polite"></div>
+                <div class="base-output-grid">
+                    <label class="field-block"><span>BIN（二进制）</span><textarea id="baseBin" rows="3" readonly></textarea></label>
+                    <label class="field-block"><span>OCT（八进制）</span><textarea id="baseOct" rows="3" readonly></textarea></label>
+                    <label class="field-block"><span>DEC（十进制）</span><textarea id="baseDec" rows="3" readonly></textarea></label>
+                    <label class="field-block"><span>HEX（十六进制）</span><textarea id="baseHex" rows="3" readonly></textarea></label>
+                </div>
+            </section>
+
+            <section id="tool-date" class="tool-panel" data-tool-panel="date" hidden aria-labelledby="dateTitle">
+                <div class="panel-head">
+                    <div>
+                        <h2 id="dateTitle">日期计算</h2>
+                        <p>按自然日计算，不受夏令时或时区偏移影响。</p>
+                    </div>
+                </div>
+                <div class="date-sections">
+                    <section class="sub-panel">
+                        <h3>日期间隔</h3>
+                        <div class="date-grid">
+                            <label class="field-block"><span>开始日期</span><input id="dateStart" type="date"></label>
+                            <label class="field-block"><span>结束日期</span><input id="dateEnd" type="date"></label>
+                        </div>
+                        <div id="dateDifference" class="date-result" aria-live="polite"></div>
+                    </section>
+                    <section class="sub-panel">
+                        <h3>日期加减</h3>
+                        <div class="date-grid date-add-grid">
+                            <label class="field-block"><span>基准日期</span><input id="dateBase" type="date"></label>
+                            <label class="field-block"><span>操作</span><select id="dateOperation"><option value="add">加</option><option value="subtract">减</option></select></label>
+                            <label class="field-block"><span>数量</span><input id="dateAmount" type="number" min="0" max="100000" step="1" value="30"></label>
+                            <label class="field-block"><span>单位</span><select id="dateUnit"><option value="days">天</option><option value="weeks">周</option><option value="months">月</option><option value="years">年</option></select></label>
+                        </div>
+                        <label class="checkbox-row"><input id="businessDaysOnly" type="checkbox"> 天数按工作日计算（仅周一至周五）</label>
+                        <div id="dateAddResult" class="date-result" aria-live="polite"></div>
+                    </section>
+                </div>
+            </section>
+        </main>
+    </div>
+    <div id="visitorCounter" class="visitor-counter" role="status" aria-live="polite">访问次数：—</div>
+</div>
+<script src="/formula-assets/calculator.js?v=20" defer></script>
+<script type="module" src="/formula-assets/tools.js?v=20"></script>
+</body>
+</html>
