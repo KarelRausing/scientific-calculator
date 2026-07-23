@@ -509,8 +509,6 @@
             throw new Error('embedded');
         }
         if (!window.crypto?.subtle || value.length > 4096) throw new Error('crypto_unavailable');
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 12000);
         const encoder = new TextEncoder();
         const toBase64 = bytes => {
             let raw = '';
@@ -527,45 +525,47 @@
             return bytes;
         };
         const post = async body => {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                credentials: 'same-origin',
-                cache: 'no-store',
-                signal: controller.signal,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: JSON.stringify(body)
-            });
-            return await response.json();
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 20000);
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    signal: controller.signal,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify(body)
+                });
+                return await response.json();
+            } finally {
+                clearTimeout(timer);
+            }
         };
-        try {
-            const clientNonce = toBase64(crypto.getRandomValues(new Uint8Array(32)));
-            const challenge = await post({ op: 'challenge', client_nonce: clientNonce });
-            if (!challenge?.ok) return challenge;
-            if (
-                typeof challenge.challenge !== 'string'
-                || typeof challenge.server_nonce !== 'string'
-                || typeof challenge.salt !== 'string'
-                || challenge.iterations !== 250000
-            ) throw new Error('invalid_challenge');
-            const salt = fromBase64(challenge.salt);
-            if (salt.length !== 32) throw new Error('invalid_challenge');
-            const material = await crypto.subtle.importKey('raw', encoder.encode(value), 'PBKDF2', false, ['deriveKey']);
-            const proofKey = await crypto.subtle.deriveKey(
-                { name: 'PBKDF2', salt, iterations: challenge.iterations, hash: 'SHA-256' },
-                material,
-                { name: 'HMAC', hash: 'SHA-256', length: 256 },
-                false,
-                ['sign']
-            );
-            const transcript = `formula-auth-v4\n${challenge.challenge}\n${clientNonce}\n${challenge.server_nonce}`;
-            const proof = await crypto.subtle.sign('HMAC', proofKey, encoder.encode(transcript));
-            return await post({ op: 'resolve', challenge: challenge.challenge, proof: toBase64(proof) });
-        } finally {
-            clearTimeout(timer);
-        }
+        const clientNonce = toBase64(crypto.getRandomValues(new Uint8Array(32)));
+        const challenge = await post({ op: 'challenge', client_nonce: clientNonce });
+        if (!challenge?.ok) return challenge;
+        if (
+            typeof challenge.challenge !== 'string'
+            || typeof challenge.server_nonce !== 'string'
+            || typeof challenge.salt !== 'string'
+            || challenge.iterations !== 250000
+        ) throw new Error('invalid_challenge');
+        const salt = fromBase64(challenge.salt);
+        if (salt.length !== 32) throw new Error('invalid_challenge');
+        const material = await crypto.subtle.importKey('raw', encoder.encode(value), 'PBKDF2', false, ['deriveKey']);
+        const proofKey = await crypto.subtle.deriveKey(
+            { name: 'PBKDF2', salt, iterations: challenge.iterations, hash: 'SHA-256' },
+            material,
+            { name: 'HMAC', hash: 'SHA-256', length: 256 },
+            false,
+            ['sign']
+        );
+        const transcript = `formula-auth-v4\n${challenge.challenge}\n${clientNonce}\n${challenge.server_nonce}`;
+        const proof = await crypto.subtle.sign('HMAC', proofKey, encoder.encode(transcript));
+        return await post({ op: 'resolve', challenge: challenge.challenge, proof: toBase64(proof) });
     }
 
     function recoverResult() {
