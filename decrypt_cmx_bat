@@ -1,0 +1,192 @@
+@echo off
+setlocal EnableExtensions
+title Encrypted Chat Backup Decryptor
+
+where pwsh.exe >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] PowerShell 7 is required.
+    echo.
+    echo Install it, then run this BAT again:
+    echo winget install --id Microsoft.PowerShell --source winget
+    echo.
+    pause
+    exit /b 2
+)
+
+set "CHAT_DECRYPT_SELF=%~f0"
+pwsh.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $p=$env:CHAT_DECRYPT_SELF; $raw=[IO.File]::ReadAllText($p); $m=('::POWER'+'SHELL_PAYLOAD::'); $i=$raw.IndexOf($m,[StringComparison]::Ordinal); if($i -lt 0){throw 'Embedded payload was not found.'}; & ([ScriptBlock]::Create($raw.Substring($i+$m.Length)))"
+set "RC=%ERRORLEVEL%"
+
+if not "%RC%"=="0" (
+    echo.
+    echo [ERROR] Decryption did not complete.
+    pause
+    exit /b %RC%
+)
+
+echo.
+echo Finished.
+pause
+exit /b 0
+
+::POWERSHELL_PAYLOAD::
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+if (-not $IsWindows) { throw 'This decryptor is intended for Windows.' }
+Add-Type -AssemblyName System.Windows.Forms
+
+function Select-InputFile {
+    param([string]$Title, [string]$Filter, [string]$InitialDirectory = '')
+    $dialog = [System.Windows.Forms.OpenFileDialog]::new()
+    try {
+        $dialog.Title = $Title
+        $dialog.Filter = $Filter
+        $dialog.Multiselect = $false
+        $dialog.CheckFileExists = $true
+        if ($InitialDirectory -and (Test-Path -LiteralPath $InitialDirectory -PathType Container)) {
+            $dialog.InitialDirectory = $InitialDirectory
+        }
+        if ($dialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
+            throw 'No file was selected.'
+        }
+        return $dialog.FileName
+    }
+    finally {
+        $dialog.Dispose()
+    }
+}
+
+function Read-SecretText {
+    $secure = Read-Host 'Enter the CHAT unlock secret used to encrypt these messages' -AsSecureString
+    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+    }
+    finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
+    }
+}
+
+Write-Host 'Encrypted Chat Backup Decryptor'
+Write-Host '-------------------------------'
+Write-Host 'Select chat-backup-v2-YYYY-MM-DD.ndjson.'
+
+$backupPath = Select-InputFile -Title 'Select encrypted chat backup' -Filter 'NDJSON files (*.ndjson)|*.ndjson|All files (*.*)|*.*'
+$backupPath = (Resolve-Path -LiteralPath $backupPath).Path
+$folder = Split-Path -Parent $backupPath
+$outputPath = Join-Path $folder ("decrypted-chat-{0}.txt" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+
+$firstLine = $null
+foreach ($line in [IO.File]::ReadLines($backupPath)) {
+    if (-not [string]::IsNullOrWhiteSpace($line)) { $firstLine = $line; break }
+}
+if (-not $firstLine) { throw 'The selected file is empty.' }
+
+try { $metadata = $firstLine | ConvertFrom-Json } catch { throw 'The backup metadata is invalid.' }
+if (-not $metadata.PSObject.Properties['type'] -or [string]$metadata.type -ne 'formula-chat-backup-v2') { throw 'This is not a v2 backup.' }
+if (-not $metadata.PSObject.Properties['version'] -or [int]$metadata.version -ne 2) { throw 'Unsupported backup version.' }
+if (-not $metadata.PSObject.Properties['message_salt']) { throw 'Backup metadata has no message_salt.' }
+if (-not $metadata.PSObject.Properties['kdf'] -or [string]$metadata.kdf.name -ne 'PBKDF2' -or [string]$metadata.kdf.hash -ne 'SHA-256' -or [int]$metadata.kdf.iterations -ne 250000 -or [int]$metadata.kdf.length -ne 256) { throw 'Unsupported KDF parameters.' }
+if (-not $metadata.PSObject.Properties['cipher'] -or [string]$metadata.cipher.name -ne 'AES-GCM' -or [int]$metadata.cipher.tag_length -ne 128 -or [int]$metadata.cipher.iv_length -ne 96 -or [string]$metadata.cipher.aad -ne 'formula-message-v4') { throw 'Unsupported cipher parameters.' }
+$iterations = 250000
+$aadText = 'formula-message-v4'
+try { $salt = [Convert]::FromBase64String(([string]$metadata.message_salt).Trim()) } catch { throw 'message_salt is not valid Base64 data.' }
+if ($salt.Length -ne 32) { throw 'message_salt is damaged.' }
+
+$plainSecret = Read-SecretText
+if ([string]::IsNullOrEmpty($plainSecret)) { throw 'The chat unlock secret cannot be empty.' }
+
+$kdf = [Security.Cryptography.Rfc2898DeriveBytes]::new(
+    $plainSecret,
+    $salt,
+    $iterations,
+    [Security.Cryptography.HashAlgorithmName]::SHA256
+)
+try { $key = $kdf.GetBytes(32) }
+finally {
+    $kdf.Dispose()
+    $plainSecret = $null
+}
+
+$aad = [Text.Encoding]::UTF8.GetBytes($aadText)
+try { $aes = [Security.Cryptography.AesGcm]::new($key, 16) }
+catch { $aes = [Security.Cryptography.AesGcm]::new($key) }
+
+$utf8NoBom = [Text.UTF8Encoding]::new($false)
+$writer = [IO.StreamWriter]::new($outputPath, $false, $utf8NoBom)
+$success = 0
+$failed = 0
+$skipped = 0
+$lineNumber = 0
+
+try {
+    $writer.WriteLine('Decrypted chat history')
+    $writer.WriteLine("Generated: {0}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))
+    $writer.WriteLine("Source: {0}" -f $backupPath)
+    $writer.WriteLine('')
+
+    foreach ($line in [IO.File]::ReadLines($backupPath)) {
+        $lineNumber++
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        if ($lineNumber -eq 1) { continue }
+        try {
+            $row = $line | ConvertFrom-Json
+            if (-not $row.PSObject.Properties['iv'] -or -not $row.PSObject.Properties['ciphertext']) {
+                $skipped++
+                continue
+            }
+            $iv = [Convert]::FromBase64String([string]$row.iv)
+            $combined = [Convert]::FromBase64String([string]$row.ciphertext)
+            if ($iv.Length -ne 12 -or $combined.Length -le 16) { throw 'Invalid encrypted packet.' }
+
+            $cipherLength = $combined.Length - 16
+            $cipher = [byte[]]::new($cipherLength)
+            $tag = [byte[]]::new(16)
+            [Buffer]::BlockCopy($combined, 0, $cipher, 0, $cipherLength)
+            [Buffer]::BlockCopy($combined, $cipherLength, $tag, 0, 16)
+            $plaintext = [byte[]]::new($cipherLength)
+            $aes.Decrypt($iv, $cipher, $tag, $plaintext, $aad)
+            $message = ([Text.Encoding]::UTF8.GetString($plaintext)) | ConvertFrom-Json
+            if (-not $message.PSObject.Properties['version'] -or [int]$message.version -ne 4) { throw 'Unsupported message format.' }
+            if (-not $message.PSObject.Properties['sender'] -or [string]$message.sender -notin @('wave', 'snow')) { throw 'Invalid sender.' }
+            if (-not $message.PSObject.Properties['text']) { throw 'Invalid message text.' }
+            if (-not $message.PSObject.Properties['sent_at'] -or [long]$message.sent_at -le 0) { throw 'Invalid message time.' }
+            if (-not $message.PSObject.Properties['uuid'] -or [string]$message.uuid -notmatch '^[a-fA-F0-9]{32}$') { throw 'Invalid message UUID.' }
+            if (-not $row.PSObject.Properties['client_id'] -or [string]$row.client_id -ne [string]$message.uuid) { throw 'Message ID mismatch.' }
+
+            $sentAt = [long]$message.sent_at
+            $when = [DateTimeOffset]::FromUnixTimeSeconds($sentAt).ToLocalTime().ToString('yyyy-MM-dd HH:mm:ss')
+            $sender = [string]$message.sender
+            $text = [string]$message.text
+            if (-not $row.PSObject.Properties['id']) { throw 'Missing record ID.' }
+            $recordId = [string]$row.id
+
+            $writer.WriteLine("[$when] $sender  (record $recordId)")
+            $writer.WriteLine($text)
+            $writer.WriteLine('')
+            $success++
+        }
+        catch {
+            $failed++
+        }
+    }
+}
+finally {
+    $writer.Dispose()
+    $aes.Dispose()
+    if ($key) { [Array]::Clear($key, 0, $key.Length) }
+}
+
+Write-Host ''
+Write-Host "Decryption complete. Successful: $success; failed: $failed; skipped: $skipped"
+Write-Host "Output: $outputPath"
+if ($success -eq 0 -and $failed -gt 0) {
+    Write-Warning 'No message was decrypted. Check the chat unlock secret and make sure the backup matches it.'
+}
+elseif ($failed -gt 0) {
+    Write-Warning 'Some rows are damaged or do not match this backup secret.'
+}
+
+try { Start-Process -FilePath 'notepad.exe' -ArgumentList @($outputPath) }
+catch { Write-Warning 'The output was created, but Notepad could not be opened automatically.' }
