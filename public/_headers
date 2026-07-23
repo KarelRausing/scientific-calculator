@@ -8,3 +8,6 @@
 
 /formula-assets/*
   Cache-Control: public, max-age=3600
+
+/formula-assets/calculator.js
+  Cache-Control: no-cache, must-revalidate
